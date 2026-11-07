@@ -3,271 +3,309 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, FileText, User, Calendar, DollarSign, Package } from "lucide-react";
-import { InvoiceData } from "@/types/invoice";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Trash2, GripVertical, RefreshCw } from "lucide-react";
+import { BillingCycle, Client, InvoiceData, InvoiceItem, TaxMode } from "@/types/invoice";
+import { computeTotals, formatAmount, formatCurrency, formatDate, lineAmount } from "@/lib/invoiceMath";
+import { CYCLE_LABELS, nextCycleDate } from "@/lib/renewals";
 
 interface InvoiceFormProps {
   data: InvoiceData;
   onChange: (data: InvoiceData) => void;
-  type: "invoice" | "proforma";
+  clients: Client[];
+  companyState: string;
 }
 
-const InvoiceForm = ({ data, onChange, type }: InvoiceFormProps) => {
-  const updateField = (field: keyof InvoiceData, value: any) => {
-    onChange({ ...data, [field]: value });
+const emptyItem = (): InvoiceItem => ({ description: "", hsnSac: "", quantity: 1, unitPrice: 0, discountPct: 0 });
+
+const Section = ({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) => (
+  <Card className="p-5 shadow-sm">
+    <div className="mb-4 flex items-center justify-between">
+      <h3 className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{title}</h3>
+      {action}
+    </div>
+    {children}
+  </Card>
+);
+
+const Field = ({ label, children, className = "" }: { label: string; children: React.ReactNode; className?: string }) => (
+  <div className={`space-y-1.5 ${className}`}>
+    <Label className="text-xs font-medium text-foreground/80">{label}</Label>
+    {children}
+  </div>
+);
+
+const toNumber = (v: string) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const InvoiceForm = ({ data, onChange, clients, companyState }: InvoiceFormProps) => {
+  const set = <K extends keyof InvoiceData>(field: K, value: InvoiceData[K]) => onChange({ ...data, [field]: value });
+
+  const updateItem = (index: number, patch: Partial<InvoiceItem>) => {
+    const items = data.items.map((item, i) => (i === index ? { ...item, ...patch } : item));
+    onChange({ ...data, items });
   };
 
-  const updateItem = (index: number, field: string, value: any) => {
-    const newItems = [...data.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    onChange({ ...data, items: newItems });
+  const setRenewal = (index: number, cycle: BillingCycle | null) =>
+    updateItem(index, cycle ? { renewalCycle: cycle, nextRenewalDate: nextCycleDate(data.date, cycle) } : { renewalCycle: null, nextRenewalDate: "", renewalId: null });
+
+  /** Changing the issue date also moves renewal dates that were still on their default (issue date + cycle). */
+  const setIssueDate = (date: string) => {
+    const items = data.items.map((i) =>
+      i.renewalCycle && date && i.nextRenewalDate === nextCycleDate(data.date, i.renewalCycle)
+        ? { ...i, nextRenewalDate: nextCycleDate(date, i.renewalCycle) }
+        : i
+    );
+    onChange({ ...data, date, items });
   };
 
-  const addItem = () => {
+  const removeItem = (index: number) =>
+    onChange({ ...data, items: data.items.length > 1 ? data.items.filter((_, i) => i !== index) : [emptyItem()] });
+
+  const pickClient = (id: string) => {
+    if (id === "__new") {
+      onChange({ ...data, clientId: null, clientName: "", clientCompany: "", clientEmail: "", clientPhone: "", clientAddress: "", clientGstin: "", placeOfSupply: "" });
+      return;
+    }
+    const c = clients.find((x) => x.id === id);
+    if (!c) return;
+    const state = c.state || data.placeOfSupply;
     onChange({
       ...data,
-      items: [...data.items, { description: "", rate: 0, discount: 0 }],
+      clientId: c.id,
+      clientName: c.name,
+      clientCompany: c.company,
+      clientEmail: c.email,
+      clientPhone: c.phone,
+      clientAddress: c.address,
+      clientGstin: c.gstin,
+      placeOfSupply: state,
+      taxMode:
+        data.taxMode === "none" || !state || !companyState
+          ? data.taxMode
+          : state.trim().toLowerCase() === companyState.trim().toLowerCase()
+            ? "cgst_sgst"
+            : "igst",
     });
   };
 
-  const removeItem = (index: number) => {
-    if (data.items.length > 1) {
-      onChange({
-        ...data,
-        items: data.items.filter((_, i) => i !== index),
-      });
-    }
-  };
+  const totals = computeTotals(data);
+  const isProforma = data.type === "proforma";
 
   return (
-    <Card className="p-6 shadow-lg border-2 hover:shadow-xl transition-shadow duration-300">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <FileText className="w-6 h-6 text-primary" />
-          </div>
-          <h2 className="text-2xl font-bold text-foreground">
-            {type === "invoice" ? "Invoice" : "Proforma Invoice"} Details
-          </h2>
-        </div>
-        <Badge variant="outline" className="text-sm">
-          {data.invoiceNumber || "New"}
-        </Badge>
-      </div>
-
-      <div className="space-y-6">
-        {/* Invoice Number & Date Section */}
-        <div className="p-4 bg-muted/50 rounded-lg border border-border/50">
-          <div className="flex items-center gap-2 mb-4">
-            <Calendar className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Document Information</h3>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="invoiceNumber" className="text-sm font-medium flex items-center gap-2">
-                <FileText className="w-3.5 h-3.5 text-muted-foreground" />
-                {type === "invoice" ? "Invoice" : "Proforma"} Number
-              </Label>
-              <Input
-                id="invoiceNumber"
-                value={data.invoiceNumber}
-                onChange={(e) => updateField("invoiceNumber", e.target.value)}
-                className="font-mono"
-                placeholder="INV-001"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="date" className="text-sm font-medium flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                Issue Date
-              </Label>
-              <Input
-                id="date"
-                type="date"
-                value={data.date}
-                onChange={(e) => updateField("date", e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="mt-4">
-            <Label htmlFor="dueDate" className="text-sm font-medium flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-              Due Date
-            </Label>
+    <div className="space-y-4">
+      <Section title="Document">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={isProforma ? "Proforma number" : "Invoice number"} className="col-span-2">
             <Input
-              id="dueDate"
-              type="date"
-              value={data.dueDate}
-              onChange={(e) => updateField("dueDate", e.target.value)}
-              className="mt-2"
-            />
-          </div>
-        </div>
-
-        {/* Client Details Section */}
-        <div className="p-4 bg-accent/5 rounded-lg border border-accent/20">
-          <div className="flex items-center gap-2 mb-4">
-            <User className="w-4 h-4 text-accent" />
-            <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Client Information</h3>
-          </div>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="clientName" className="text-sm font-medium">Client Name</Label>
-              <Input
-                id="clientName"
-                value={data.clientName}
-                onChange={(e) => updateField("clientName", e.target.value)}
-                placeholder="Enter client name"
-                className="font-medium"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="clientEmail" className="text-sm font-medium">Client Email</Label>
-              <Input
-                id="clientEmail"
-                type="email"
-                value={data.clientEmail}
-                onChange={(e) => updateField("clientEmail", e.target.value)}
-                placeholder="client@example.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="clientAddress" className="text-sm font-medium">Client Address</Label>
-              <Textarea
-                id="clientAddress"
-                value={data.clientAddress}
-                onChange={(e) => updateField("clientAddress", e.target.value)}
-                placeholder="Enter full client address"
-                rows={3}
-                className="resize-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Line Items Section */}
-        <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Package className="w-4 h-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">Line Items</h3>
-              <Badge variant="secondary" className="ml-2">{data.items.length}</Badge>
-            </div>
-            <Button onClick={addItem} size="sm" className="gap-2 shadow-sm">
-              <Plus className="w-4 h-4" />
-              Add Item
-            </Button>
-          </div>
-
-          <div className="space-y-3">
-            {data.items.map((item, index) => (
-              <div key={index} className="p-4 border-2 rounded-lg space-y-3 bg-card shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                      {index + 1}
-                    </span>
-                    <span className="text-sm font-semibold text-foreground">
-                      Item {index + 1}
-                    </span>
-                  </div>
-                  {data.items.length > 1 && (
-                    <Button
-                      onClick={() => removeItem(index)}
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Description</Label>
-                  <Textarea
-                    value={item.description}
-                    onChange={(e) => updateItem(index, "description", e.target.value)}
-                    placeholder="Service or product description"
-                    rows={2}
-                    className="resize-none"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium flex items-center gap-1">
-                      <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-                      Rate (₹)
-                    </Label>
-                    <Input
-                      type="number"
-                      value={item.rate}
-                      onChange={(e) => updateItem(index, "rate", parseFloat(e.target.value) || 0)}
-                      min="0"
-                      step="0.01"
-                      className="font-mono"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">Discount (%)</Label>
-                    <Input
-                      type="number"
-                      value={item.discount}
-                      onChange={(e) => updateItem(index, "discount", parseFloat(e.target.value) || 0)}
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      className="font-mono"
-                    />
-                  </div>
-                </div>
-                {item.rate > 0 && (
-                  <div className="pt-2 border-t flex justify-between text-sm">
-                    <span className="text-muted-foreground">Net Amount:</span>
-                    <span className="font-semibold text-foreground">
-                      ₹{(item.rate - (item.rate * item.discount / 100)).toFixed(2)}
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Tax & Notes Section */}
-        <div className="space-y-4">
-          <div className="p-4 bg-muted/50 rounded-lg border border-border/50">
-            <Label htmlFor="taxRate" className="text-sm font-medium flex items-center gap-2 mb-2">
-              <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-              Tax Rate (%)
-            </Label>
-            <Input
-              id="taxRate"
-              type="number"
-              value={data.taxRate}
-              onChange={(e) => updateField("taxRate", parseFloat(e.target.value) || 0)}
-              min="0"
-              max="100"
-              step="0.01"
+              value={data.invoiceNumber}
+              onChange={(e) => set("invoiceNumber", e.target.value)}
+              placeholder="Assigned automatically on first save"
               className="font-mono"
-              placeholder="18"
             />
-          </div>
+          </Field>
+          <Field label="Issue date">
+            <Input type="date" value={data.date} onChange={(e) => setIssueDate(e.target.value)} />
+          </Field>
+          <Field label={isProforma ? "Valid until" : "Due date"}>
+            <Input type="date" value={data.dueDate} onChange={(e) => set("dueDate", e.target.value)} />
+          </Field>
+        </div>
+      </Section>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes" className="text-sm font-medium">Notes / Payment Terms</Label>
-            <Textarea
-              id="notes"
-              value={data.notes}
-              onChange={(e) => updateField("notes", e.target.value)}
-              placeholder="Additional notes, payment terms, or special instructions..."
-              rows={4}
-              className="resize-none"
-            />
+      <Section title="Bill to">
+        <div className="grid grid-cols-2 gap-3">
+          {clients.length > 0 && (
+            <Field label="Saved client" className="col-span-2">
+              <Select value={data.clientId || ""} onValueChange={pickClient}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a saved client or type new details below" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__new">+ New client</SelectItem>
+                  {clients.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                      {c.company ? ` — ${c.company}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+          <Field label="Contact name *">
+            <Input value={data.clientName} onChange={(e) => set("clientName", e.target.value)} placeholder="Full name" />
+          </Field>
+          <Field label="Company">
+            <Input value={data.clientCompany} onChange={(e) => set("clientCompany", e.target.value)} placeholder="Business name" />
+          </Field>
+          <Field label="Email">
+            <Input type="email" value={data.clientEmail} onChange={(e) => set("clientEmail", e.target.value)} placeholder="client@company.com" />
+          </Field>
+          <Field label="Phone">
+            <Input value={data.clientPhone} onChange={(e) => set("clientPhone", e.target.value)} placeholder="+91" />
+          </Field>
+          <Field label="Billing address" className="col-span-2">
+            <Textarea rows={3} className="resize-none" value={data.clientAddress} onChange={(e) => set("clientAddress", e.target.value)} placeholder="Street, city, state, PIN" />
+          </Field>
+          <Field label="Client GSTIN">
+            <Input className="font-mono uppercase" maxLength={15} value={data.clientGstin} onChange={(e) => set("clientGstin", e.target.value.toUpperCase())} placeholder="33ABCDE1234F1Z5" />
+          </Field>
+          <Field label="Place of supply (state)">
+            <Input value={data.placeOfSupply} onChange={(e) => set("placeOfSupply", e.target.value)} placeholder={companyState || "Tamil Nadu"} />
+          </Field>
+        </div>
+      </Section>
+
+      <Section
+        title={`Line items (${data.items.length})`}
+        action={
+          <Button size="sm" variant="outline" className="h-8 gap-1.5" onClick={() => set("items", [...data.items, emptyItem()])}>
+            <Plus className="h-3.5 w-3.5" /> Add item
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          {data.items.map((item, index) => (
+            <div key={index} className="group rounded-lg border bg-muted/30 p-3">
+              <div className="flex items-start gap-2">
+                <GripVertical className="mt-2.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
+                <div className="grid flex-1 grid-cols-12 gap-2">
+                  <Textarea
+                    rows={2}
+                    className="col-span-12 resize-none bg-background"
+                    value={item.description}
+                    onChange={(e) => updateItem(index, { description: e.target.value })}
+                    placeholder={`Item ${index + 1} — service or product description`}
+                  />
+                  <Field label="Rate (₹)" className="col-span-5">
+                    <Input type="number" min="0" step="0.01" className="h-9 bg-background tabular" value={item.unitPrice} onChange={(e) => updateItem(index, { unitPrice: toNumber(e.target.value) })} />
+                  </Field>
+                  <Field label="Qty" className="col-span-3">
+                    <Input type="number" min="0" step="1" className="h-9 bg-background tabular" value={item.quantity} onChange={(e) => updateItem(index, { quantity: toNumber(e.target.value) })} />
+                  </Field>
+                  <Field label="Disc %" className="col-span-4">
+                    <Input type="number" min="0" max="100" step="0.5" className="h-9 bg-background tabular" value={item.discountPct} onChange={(e) => updateItem(index, { discountPct: Math.min(100, toNumber(e.target.value)) })} />
+                  </Field>
+                  <Field label="HSN/SAC" className="col-span-6">
+                    <Input className="h-9 bg-background font-mono text-xs" value={item.hsnSac} onChange={(e) => updateItem(index, { hsnSac: e.target.value })} placeholder="998314" />
+                  </Field>
+                  <div className="col-span-6 flex flex-col items-end justify-end pb-1.5 text-right">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Amount</span>
+                    <span className="text-sm font-semibold tabular">{formatAmount(lineAmount(item))}</span>
+                  </div>
+
+                  <div className={`col-span-12 mt-1 rounded-md border p-2.5 ${item.renewalCycle ? "border-primary/30 bg-primary/5" : "border-dashed bg-background/60"}`}>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium">
+                      <Switch checked={!!item.renewalCycle} onCheckedChange={(on) => setRenewal(index, on ? "yearly" : null)} />
+                      <RefreshCw className={`h-3.5 w-3.5 ${item.renewalCycle ? "text-primary" : "text-muted-foreground"}`} />
+                      Recurring service (domain, hosting, AMC…) — remind me to renew
+                    </label>
+                    {item.renewalCycle && (
+                      <div className="mt-2.5 grid grid-cols-2 gap-2">
+                        <Field label="Renews">
+                          <Select value={item.renewalCycle} onValueChange={(v) => setRenewal(index, v as BillingCycle)}>
+                            <SelectTrigger className="h-9 bg-background">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(CYCLE_LABELS).map(([k, label]) => (
+                                <SelectItem key={k} value={k}>
+                                  {label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field label="Next renewal date">
+                          <Input type="date" className="h-9 bg-background" value={item.nextRenewalDate || ""} onChange={(e) => updateItem(index, { nextRenewalDate: e.target.value })} />
+                        </Field>
+                        <p className="col-span-2 text-[11px] text-muted-foreground">
+                          {data.type === "proforma"
+                            ? "Shown on the proforma. The renewal reminder starts when it becomes a tax invoice."
+                            : item.renewalId
+                              ? `Linked to an existing renewal — saving updates it to ${formatDate(item.nextRenewalDate)}.`
+                              : "Saving adds this to Renewals and reminds you 15 days before."}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => removeItem(index)}
+                  aria-label="Remove item"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Tax">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="GST type">
+            <Select value={data.taxMode} onValueChange={(v) => set("taxMode", v as TaxMode)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="cgst_sgst">CGST + SGST (same state)</SelectItem>
+                <SelectItem value="igst">IGST (other state)</SelectItem>
+                <SelectItem value="none">No tax</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label="GST rate (%)">
+            <Select value={String(data.taxRate)} onValueChange={(v) => set("taxRate", toNumber(v))} disabled={data.taxMode === "none"}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[0, 5, 12, 18, 28].map((r) => (
+                  <SelectItem key={r} value={String(r)}>
+                    {r}%
+                  </SelectItem>
+                ))}
+                {![0, 5, 12, 18, 28].includes(data.taxRate) && <SelectItem value={String(data.taxRate)}>{data.taxRate}%</SelectItem>}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <div className="mt-4 space-y-1 rounded-lg bg-muted/50 p-3 text-sm">
+          <div className="flex justify-between text-muted-foreground">
+            <span>Taxable value</span>
+            <span className="tabular">{formatCurrency(totals.taxable)}</span>
+          </div>
+          <div className="flex justify-between text-muted-foreground">
+            <span>GST</span>
+            <span className="tabular">{formatCurrency(totals.taxTotal)}</span>
+          </div>
+          <div className="flex justify-between border-t pt-1 font-semibold">
+            <span>Total</span>
+            <span className="tabular">{formatCurrency(totals.grandTotal)}</span>
           </div>
         </div>
-      </div>
-    </Card>
+      </Section>
+
+      <Section title="Terms & notes">
+        <div className="space-y-3">
+          <Field label="Terms & conditions">
+            <Textarea rows={4} className="resize-none text-sm" value={data.terms} onChange={(e) => set("terms", e.target.value)} />
+          </Field>
+          <Field label="Notes to client">
+            <Textarea rows={2} className="resize-none text-sm" value={data.notes} onChange={(e) => set("notes", e.target.value)} placeholder="e.g. Project: CRM implementation, Phase 1" />
+          </Field>
+        </div>
+      </Section>
+    </div>
   );
 };
 

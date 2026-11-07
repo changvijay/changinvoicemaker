@@ -1,84 +1,67 @@
-# Welcome to your Lovable project
+# Chang IT Solutions — Invoice Maker
 
-## Project info
+Professional GST invoices and proforma invoices for **Chang IT Solutions** ([changtechs.com](https://changtechs.com)).
 
-**URL**: https://lovable.dev/projects/6aa3ab7e-03bf-4c36-9d73-7d4bd5b92987
+Invoices are **stored as data in PostgreSQL, not as files**. Open any saved document at any time to edit it and
+print / save it as PDF again — the PDF is generated fresh from the database every time.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- Tax invoices and proforma invoices with automatic numbering per Indian financial year
+  (`CIS-INV/2026-27/0001`, `CIS-PRO/2026-27/0001`)
+- GST: CGST + SGST (same state), IGST (other state) or no tax; HSN/SAC, quantity, rate and discount per line
+- Amount in words (Indian numbering — lakh / crore), bank & UPI details, terms, authorised signatory block
+- Status tracking: draft, sent, paid, cancelled (overdue is shown automatically)
+- Convert a proforma into a tax invoice, or duplicate any document
+- Client book — clients are saved automatically the first time you bill them
+- Dashboard with invoiced / received / outstanding / overdue totals
+- **Renewals** — track clients' recurring services (domain, hosting, SSL, AMC, licences, cloud) with billing cycle,
+  amount and next renewal date; one click raises the renewal invoice, moves the next date forward and keeps a renewal history
+- **Reminders** on the dashboard — renewals inside their reminder window and invoices due within 7 days or overdue,
+  with pre-written email / WhatsApp reminder messages (opened in your own mail app or WhatsApp; nothing is sent automatically)
+- Company settings (address, GSTIN, PAN, bank, prefixes, default terms) editable in the app
+- Clean A4 print layout — use **Print / PDF** and choose "Save as PDF"
 
-**Use Lovable**
+## Setup
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/6aa3ab7e-03bf-4c36-9d73-7d4bd5b92987) and start prompting.
+1. Install dependencies
 
-Changes made via Lovable will be committed automatically to this repo.
+   ```sh
+   npm install
+   ```
 
-**Use your preferred IDE**
+2. Copy `.env.example` to `.env` and fill in your PostgreSQL connection (Aiven works out of the box).
+   The database (default name `chang_invoices`) must exist; the tables are created automatically on first start.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+3. Run the app (API on port 4000 + web on port 8080)
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+   ```sh
+   npm run dev
+   ```
 
-Follow these steps:
+   Open http://localhost:8080.
+
+## Production
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm run build   # builds the web app into dist/
+npm start       # one server: API + web app on PORT (default 4000)
 ```
 
-**Edit a file directly in GitHub**
+## Database tables
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+| Table              | Holds                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| `company_settings` | Your company details, bank info, prefixes, default terms (1 row) |
+| `clients`          | Saved clients                                                |
+| `invoices`         | One row per invoice / proforma, with a copy of the client details and stored totals |
+| `invoice_items`    | Line items for each invoice                                  |
+| `renewals`         | Recurring client services and their next renewal date        |
+| `renewal_history`  | Each renewal: period covered, amount and linked invoice      |
+| `number_sequences` | Last used number per document type and financial year       |
 
-**Use GitHub Codespaces**
+## Security
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## Local JSON Invoice API
-
-The app can persist invoices to a local JSON file via a lightweight Express server.
-
-1. Install the dependencies: `npm install` (or `bun install`).
-2. In one terminal, start the invoice API: `npm run server`. This launches `server/invoiceServer.mjs` on `http://localhost:4000` and writes data to `data/invoices.json`.
-3. Create a `.env` (or `.env.local`) in the project root with `VITE_INVOICE_API_URL=http://localhost:4000/api/invoices`.
-4. In another terminal, start the UI: `npm run dev` (or `bun run dev`).
-
-If the API is unreachable (or the env var is omitted), the UI automatically falls back to browser `localStorage`, so you still have basic persistence.
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/6aa3ab7e-03bf-4c36-9d73-7d4bd5b92987) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+`.env` holds your database password and is git-ignored — never commit it. With `PGSSLMODE=require` the connection
+is encrypted; to also verify the server certificate, download the CA certificate from the Aiven console and set
+`PGSSLROOTCERT=./ca.pem`.

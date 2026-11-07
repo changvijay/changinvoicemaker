@@ -1,234 +1,285 @@
-import { Card } from "@/components/ui/card";
-import { InvoiceData } from "@/types/invoice";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import { Building2, Mail, MapPin, Calendar, Phone } from "lucide-react";
+import { useState } from "react";
+import { CompanySettings, InvoiceData } from "@/types/invoice";
+import { amountInWords, computeTotals, formatAmount, formatCurrency, formatDate, lineAmount } from "@/lib/invoiceMath";
+import { CYCLE_LABELS } from "@/lib/renewals";
 
 interface InvoicePreviewProps {
   data: InvoiceData;
-  type: "invoice" | "proforma";
+  company: CompanySettings;
 }
 
-const InvoicePreview = ({ data, type }: InvoicePreviewProps) => {
-  const grossSubtotal = data.items.reduce((sum, item) => sum + item.rate, 0);
-  const discountAmount = data.items.reduce(
-    (sum, item) => sum + (item.rate * item.discount) / 100,
-    0
-  );
-  const netSubtotal = grossSubtotal - discountAmount;
-  const taxAmount = data.taxRate > 0 ? (netSubtotal * data.taxRate) / 100 : 0;
-  const totalAmount = netSubtotal + taxAmount;
+const Label = ({ children }: { children: React.ReactNode }) => (
+  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">{children}</div>
+);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-    }).format(amount);
-  };
+const InvoicePreview = ({ data, company }: InvoicePreviewProps) => {
+  const [logoFailed, setLogoFailed] = useState(false);
+  const totals = computeTotals(data);
+  const isProforma = data.type === "proforma";
+  const title = isProforma ? "Proforma Invoice" : data.taxMode === "none" ? "Invoice" : "Tax Invoice";
+  const items = data.items.filter((i) => i.description || i.unitPrice > 0);
+  const hasDiscount = items.some((i) => i.discountPct > 0);
+  const hasHsn = items.some((i) => i.hsnSac);
+  const halfRate = (data.taxRate || 0) / 2;
+  const hasBank = company.bankAccountNumber || company.bankName || company.upiId;
+  const stamp = data.status === "paid" ? "PAID" : data.status === "cancelled" ? "CANCELLED" : "";
 
   return (
-    <Card className="invoice-card p-8 bg-card shadow-xl border-2">
-      <div className="space-y-8">
-        {/* Header with Gradient Background */}
-        <div className="invoice-header relative overflow-hidden rounded-xl bg-gradient-to-br from-primary via-primary/90 to-accent p-6 print-no-break">
-          <div className="relative z-10">
-            <div className="flex justify-between items-start">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-8 h-8 text-primary-foreground" />
-                  <h1 className="text-3xl font-bold text-primary-foreground">Chang Groups</h1>
-                </div>
-                <p className="text-primary-foreground/90 font-medium">IT Solutions & Services</p>
-                <div className="flex flex-col gap-1 text-sm text-primary-foreground/80 mt-2">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-3.5 h-3.5" />
-                    <span>changvijay54@mail.com</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-3.5 h-3.5" />
-                    <span>7010747878</span>
-                  </div>
-                </div>
-              </div>
-              <div className="invoice-number text-right bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
-                <h2 className="text-2xl font-bold text-primary-foreground uppercase tracking-wide">
-                  {type === "invoice" ? "Invoice" : "Proforma"}
-                </h2>
-                <p className="text-primary-foreground/90 font-mono text-lg mt-1">
-                  #{data.invoiceNumber}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
-          <div className="absolute -left-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+    <div className="invoice-sheet relative mx-auto w-full max-w-[210mm] bg-white text-slate-800 shadow-xl ring-1 ring-slate-200 print:shadow-none print:ring-0">
+      <div className="h-1.5 bg-brand-gradient" />
+
+      {stamp && (
+        <div
+          className={`pointer-events-none absolute right-10 top-40 rotate-[-14deg] rounded-md border-4 px-4 py-1 text-3xl font-extrabold tracking-widest opacity-25 ${
+            stamp === "PAID" ? "border-emerald-600 text-emerald-600" : "border-red-600 text-red-600"
+          }`}
+        >
+          {stamp}
         </div>
+      )}
 
-        {/* Date and Client Information */}
-        <div className="invoice-grid grid md:grid-cols-2 gap-6 print-no-break">
-          {/* Bill To Section */}
-          <div className="client-section space-y-3 p-5 rounded-lg bg-muted/30 border border-border/50">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="icon-wrapper w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center">
-                <Building2 className="w-4 h-4 text-accent" />
+      <div className="px-10 pb-8 pt-8 print:px-[12mm]">
+        {/* Header */}
+        <header className="flex items-start justify-between gap-6">
+          <div className="flex items-start gap-4">
+            {company.logoUrl && !logoFailed ? (
+              <img
+                src={company.logoUrl}
+                alt=""
+                className="h-14 w-14 shrink-0 object-contain"
+                onError={() => setLogoFailed(true)}
+              />
+            ) : (
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-brand-gradient text-xl font-bold text-white">
+                {company.name.slice(0, 1)}
               </div>
-              <h3 className="font-bold text-foreground uppercase tracking-wide text-sm">Bill To</h3>
-            </div>
-            <div className="space-y-2">
-              <p className="font-bold text-lg text-foreground">{data.clientName || "Client Name"}</p>
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <Mail className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p>{data.clientEmail || "client@example.com"}</p>
-              </div>
-              <div className="flex items-start gap-2 text-sm text-muted-foreground">
-                <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                <p className="whitespace-pre-line">{data.clientAddress || "Client Address"}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Invoice Details Section */}
-          <div className="invoice-details-section space-y-3 p-5 rounded-lg bg-primary/5 border border-primary/20">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="icon-wrapper w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                <Calendar className="w-4 h-4 text-primary" />
-              </div>
-              <h3 className="font-bold text-foreground uppercase tracking-wide text-sm">Invoice Details</h3>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center p-2 bg-card rounded">
-                <span className="text-sm font-medium text-muted-foreground">Issue Date:</span>
-                <span className="font-semibold text-foreground">
-                  {new Date(data.date).toLocaleDateString("en-GB", {
-                    day: "2-digit",
-                    month: "short",
-                    year: "numeric",
-                    timeZone: "Asia/Kolkata",
-                  }).replace(/ /g, "-")}
-                </span>
-              </div>
-              {data.dueDate && (
-                <div className="flex justify-between items-center p-2 bg-card rounded">
-                  <span className="text-sm font-medium text-muted-foreground">Due Date:</span>
-                  <Badge variant="outline" className="badge font-semibold">
-                    {new Date(data.dueDate).toLocaleDateString("en-GB", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                      timeZone: "Asia/Kolkata",
-                    }).replace(/ /g, "-")}
-                  </Badge>
-                </div>
+            )}
+            <div>
+              <h1 className="text-xl font-bold leading-tight text-slate-900">{company.name}</h1>
+              {company.tagline && <p className="text-xs font-medium text-indigo-600">{company.tagline}</p>}
+              <p className="mt-1.5 whitespace-pre-line text-[11px] leading-relaxed text-slate-600">{company.address}</p>
+              <p className="text-[11px] leading-relaxed text-slate-600">
+                {[company.phone, company.email].filter(Boolean).join("  ·  ")}
+              </p>
+              {(company.gstin || company.pan) && (
+                <p className="text-[11px] font-medium leading-relaxed text-slate-700">
+                  {company.gstin && <>GSTIN: {company.gstin}</>}
+                  {company.gstin && company.pan && "  ·  "}
+                  {company.pan && <>PAN: {company.pan}</>}
+                </p>
               )}
             </div>
           </div>
-        </div>
-
-        {/* Items Table */}
-        <div className="invoice-table-wrapper print-section">
-          <div className="overflow-hidden rounded-lg border-2 border-border">
-            <table className="invoice-table w-full">
-              <thead>
-                <tr className="bg-gradient-to-r from-muted to-muted/50">
-                  <th className="text-left py-4 px-4 text-sm font-bold text-foreground uppercase tracking-wide">#</th>
-                  <th className="text-left py-4 px-4 text-sm font-bold text-foreground uppercase tracking-wide">Description</th>
-                  <th className="text-right py-4 px-4 text-sm font-bold text-foreground uppercase tracking-wide w-28">Rate</th>
-                  <th className="text-right py-4 px-4 text-sm font-bold text-foreground uppercase tracking-wide w-24">Disc.</th>
-                  <th className="text-right py-4 px-4 text-sm font-bold text-foreground uppercase tracking-wide w-32">Amount</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {data.items.map((item, index) => {
-                  const discountedRate = item.rate - (item.rate * item.discount / 100);
-                  return (
-                    <tr key={index} className="hover:bg-muted/20 transition-colors">
-                      <td className="py-4 px-4 text-sm font-semibold text-muted-foreground">
-                        {index + 1}
-                      </td>
-                      <td className="py-4 px-4 text-sm text-foreground">
-                        <div className="font-medium">{item.description || `Item ${index + 1}`}</div>
-                      </td>
-                      <td className="text-right py-4 px-4 text-sm text-muted-foreground font-mono">
-                        {formatCurrency(item.rate)}
-                      </td>
-                      <td className="text-right py-4 px-4 text-sm font-mono">
-                        {item.discount > 0 ? (
-                          <div className="flex flex-col items-end gap-1">
-                            <Badge variant="secondary" className="badge text-xs">
-                              -{item.discount}%
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              -{formatCurrency((item.rate * item.discount) / 100)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">--</span>
-                        )}
-                      </td>
-                      <td className="text-right py-4 px-4 text-sm font-bold text-foreground font-mono">
-                        {formatCurrency(discountedRate)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="text-right">
+            <h2 className="text-2xl font-extrabold uppercase tracking-wide text-brand-gradient">{title}</h2>
+            <p className="mt-1 font-mono text-sm font-semibold text-slate-800">
+              {data.invoiceNumber || "Number assigned on save"}
+            </p>
+            {!isProforma && data.taxMode !== "none" && (
+              <p className="mt-0.5 text-[10px] uppercase tracking-wider text-slate-400">Original for recipient</p>
+            )}
           </div>
-        </div>
+        </header>
 
-        {/* Totals Section */}
-        <div className="flex justify-end print-no-break">
-          <div className="invoice-totals w-96 space-y-3 p-6 rounded-lg bg-gradient-to-br from-muted/50 to-muted/30 border-2 border-border">
-            <div className="total-row flex justify-between items-center text-sm pb-2">
-              <span className="text-muted-foreground font-medium">Subtotal (Before Discount):</span>
-              <span className="font-semibold text-foreground font-mono text-base">{formatCurrency(grossSubtotal)}</span>
+        {/* Meta strip */}
+        <section className="mt-6 grid grid-cols-[1.6fr_1fr_1fr_1.2fr] divide-x divide-slate-200 rounded-lg border border-slate-200 bg-slate-50/70 text-sm">
+          {[
+            [isProforma ? "Proforma No." : "Invoice No.", data.invoiceNumber || "—"],
+            ["Issue Date", formatDate(data.date)],
+            [isProforma ? "Valid Until" : "Due Date", formatDate(data.dueDate)],
+            ["Place of Supply", data.placeOfSupply || company.state || "—"],
+          ].map(([label, value]) => (
+            <div key={label} className="px-3 py-2.5">
+              <Label>{label}</Label>
+              <div className="mt-0.5 whitespace-nowrap text-[13px] font-semibold text-slate-900">{value}</div>
             </div>
-            {discountAmount > 0 && (<div className="total-row flex justify-between items-center text-sm pb-2">
-              <span className="text-muted-foreground font-medium">Discount:</span>
-              <span className="font-semibold text-destructive font-mono text-base">
-                {discountAmount > 0 ? `-${formatCurrency(discountAmount)}` : formatCurrency(0)}
+          ))}
+        </section>
+
+        {/* Parties */}
+        <section className="mt-5 grid grid-cols-2 gap-5">
+          <div className="rounded-lg border border-slate-200 p-4">
+            <Label>Bill To</Label>
+            <p className="mt-1 text-base font-bold text-slate-900">{data.clientName || "Client name"}</p>
+            {data.clientCompany && <p className="text-sm font-medium text-slate-700">{data.clientCompany}</p>}
+            {data.clientAddress && (
+              <p className="mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-600">{data.clientAddress}</p>
+            )}
+            <div className="mt-1.5 space-y-0.5 text-xs text-slate-600">
+              {data.clientEmail && <p>{data.clientEmail}</p>}
+              {data.clientPhone && <p>{data.clientPhone}</p>}
+              {data.clientGstin && <p className="font-medium text-slate-700">GSTIN: {data.clientGstin}</p>}
+            </div>
+          </div>
+          <div className="rounded-lg border border-slate-200 p-4">
+            <Label>Amount {isProforma ? "Payable" : data.status === "paid" ? "Paid" : "Due"}</Label>
+            <p className="mt-1 text-2xl font-extrabold tabular text-slate-900">{formatCurrency(totals.grandTotal)}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              {data.dueDate ? `${isProforma ? "Valid until" : "Due by"} ${formatDate(data.dueDate)}` : "Due on receipt"}
+            </p>
+            <div className="mt-3 border-t border-dashed border-slate-200 pt-2 text-xs text-slate-600">
+              Tax:{" "}
+              <span className="font-medium text-slate-800">
+                {data.taxMode === "none"
+                  ? "Not applicable"
+                  : data.taxMode === "igst"
+                    ? `IGST @ ${data.taxRate}% (inter-state)`
+                    : `CGST ${halfRate}% + SGST ${halfRate}% (intra-state)`}
               </span>
-            </div>)}
-            
-            {taxAmount > 0 && (
-              <div className="total-row flex justify-between items-center text-sm pb-2">
-                <span className="text-muted-foreground font-medium">Tax ({data.taxRate}%):</span>
-                <span className="font-semibold text-foreground font-mono text-base">{formatCurrency(taxAmount)}</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Items */}
+        <section className="mt-6 overflow-hidden rounded-lg border border-slate-200">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-900 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-white">
+                <th className="w-8 py-2.5 pl-3">#</th>
+                <th className="py-2.5 pr-2">Description</th>
+                {hasHsn && <th className="w-20 py-2.5 pr-2">HSN/SAC</th>}
+                <th className="w-14 py-2.5 pr-2 text-right">Qty</th>
+                <th className="w-24 py-2.5 pr-2 text-right">Rate</th>
+                {hasDiscount && <th className="w-14 py-2.5 pr-2 text-right">Disc.</th>}
+                <th className="w-28 py-2.5 pr-3 text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {items.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 text-center text-sm text-slate-400">
+                    Add line items to see them here
+                  </td>
+                </tr>
+              ) : (
+                items.map((item, index) => (
+                  <tr key={index} className="align-top even:bg-slate-50/60">
+                    <td className="py-2.5 pl-3 text-slate-400 tabular">{index + 1}</td>
+                    <td className="py-2.5 pr-2">
+                      <div className="whitespace-pre-line font-medium text-slate-800">{item.description}</div>
+                      {item.renewalCycle && item.nextRenewalDate && (
+                        <div className="mt-1 inline-flex items-center gap-1 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                          ↻ Renews {CYCLE_LABELS[item.renewalCycle].toLowerCase()} · Next renewal: {formatDate(item.nextRenewalDate)}
+                        </div>
+                      )}
+                    </td>
+                    {hasHsn && <td className="py-2.5 pr-2 font-mono text-xs text-slate-600">{item.hsnSac}</td>}
+                    <td className="py-2.5 pr-2 text-right tabular text-slate-700">{item.quantity}</td>
+                    <td className="py-2.5 pr-2 text-right tabular text-slate-700">{formatAmount(item.unitPrice)}</td>
+                    {hasDiscount && (
+                      <td className="py-2.5 pr-2 text-right tabular text-slate-600">
+                        {item.discountPct ? `${item.discountPct}%` : "—"}
+                      </td>
+                    )}
+                    <td className="py-2.5 pr-3 text-right font-semibold tabular text-slate-900">
+                      {formatAmount(lineAmount(item))}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </section>
+
+        {/* Totals + words */}
+        <section className="mt-5 grid grid-cols-[1fr_17rem] gap-6 break-inside-avoid">
+          <div className="self-end">
+            <Label>Amount in words</Label>
+            <p className="mt-1 text-sm font-medium italic text-slate-800">{amountInWords(totals.grandTotal)}</p>
+          </div>
+          <div className="space-y-1.5 text-sm">
+            <Row label="Subtotal" value={totals.subtotal} />
+            {totals.discountTotal > 0 && <Row label="Discount" value={-totals.discountTotal} />}
+            {totals.discountTotal > 0 && <Row label="Taxable value" value={totals.taxable} />}
+            {data.taxMode === "cgst_sgst" && (
+              <>
+                <Row label={`CGST @ ${halfRate}%`} value={totals.halfTax} />
+                <Row label={`SGST @ ${halfRate}%`} value={totals.taxTotal - totals.halfTax} />
+              </>
+            )}
+            {data.taxMode === "igst" && <Row label={`IGST @ ${data.taxRate}%`} value={totals.taxTotal} />}
+            <div className="mt-2 flex items-center justify-between rounded-md bg-brand-gradient px-3 py-2.5 text-white">
+              <span className="text-sm font-semibold">Total (INR)</span>
+              <span className="text-lg font-extrabold tabular">{formatCurrency(totals.grandTotal)}</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Bank + signature */}
+        <section className="mt-7 grid grid-cols-2 gap-6 border-t border-slate-200 pt-5 break-inside-avoid">
+          <div>
+            {hasBank ? (
+              <>
+                <Label>Payment details</Label>
+                <dl className="mt-1.5 grid grid-cols-[6.5rem_1fr] gap-y-0.5 text-xs">
+                  {company.bankAccountName && <Detail k="Account name" v={company.bankAccountName} />}
+                  {company.bankName && <Detail k="Bank" v={company.bankName} />}
+                  {company.bankAccountNumber && <Detail k="Account no." v={company.bankAccountNumber} mono />}
+                  {company.bankIfsc && <Detail k="IFSC" v={company.bankIfsc} mono />}
+                  {company.bankBranch && <Detail k="Branch" v={company.bankBranch} />}
+                  {company.upiId && <Detail k="UPI" v={company.upiId} mono />}
+                </dl>
+              </>
+            ) : (
+              <p className="text-xs text-slate-400 print:hidden">Add bank / UPI details in Settings to show them here.</p>
+            )}
+          </div>
+          <div className="flex flex-col items-end justify-end text-right">
+            <p className="text-xs text-slate-600">For {company.name}</p>
+            <div className="mt-12 w-48 border-t border-slate-300 pt-1 text-xs font-semibold text-slate-800">
+              {company.signatoryName || "Authorised Signatory"}
+            </div>
+          </div>
+        </section>
+
+        {(data.terms || data.notes) && (
+          <section className="mt-6 grid grid-cols-2 gap-6 break-inside-avoid">
+            {data.terms && (
+              <div>
+                <Label>Terms &amp; conditions</Label>
+                <p className="mt-1 whitespace-pre-line text-[11px] leading-relaxed text-slate-600">{data.terms}</p>
               </div>
             )}
-            <Separator className="my-2" />
-            <div className="total-final flex justify-between items-center pt-2">
-              <span className="text-lg font-bold text-foreground">Total Amount:</span>
-              <span className="amount text-2xl font-bold text-primary font-mono">{formatCurrency(totalAmount)}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Notes Section */}
-        {data.notes && (
-          <div className="invoice-notes mt-6 p-5 border-2 border-dashed border-border/50 rounded-lg bg-muted/20 print-no-break">
-            <h3 className="font-bold text-foreground mb-3 flex items-center gap-2">
-              <div className="w-1 h-5 bg-primary rounded-full"></div>
-              Notes & Payment Terms
-            </h3>
-            <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{data.notes}</p>
-          </div>
+            {data.notes && (
+              <div className={data.terms ? "" : "col-span-2"}>
+                <Label>Notes</Label>
+                <p className="mt-1 whitespace-pre-line text-[11px] leading-relaxed text-slate-600">{data.notes}</p>
+              </div>
+            )}
+          </section>
         )}
 
-        {/* Footer */}
-        <div className="invoice-footer mt-4 pt-6 border-t-2 border-border/50 print-no-break">
-          <div className="text-center space-y-2">
-            <div className="text-sm font-semibold text-foreground">
-              Thank you for your business! -
-              <span className="text-xs text-muted-foreground">
-                {" "}Chang Groups of IT Solutions - Delivering Excellence in IT Services
-              </span>
-            </div>
-          </div>
-        </div>
+        <footer className="mt-8 border-t border-slate-200 pt-3 text-center text-[10px] text-slate-500">
+          <p className="font-medium text-slate-700">Thank you for your business!</p>
+          <p className="mt-0.5">
+            {[company.website, company.email, company.phone].filter(Boolean).join("  ·  ")}
+          </p>
+          <p className="mt-0.5">
+            {isProforma
+              ? "This is a proforma invoice for quotation / advance payment and is not a tax invoice."
+              : "This is a computer-generated invoice."}
+          </p>
+        </footer>
       </div>
-    </Card>
+      <div className="h-1.5 bg-brand-gradient" />
+    </div>
   );
 };
+
+const Row = ({ label, value }: { label: string; value: number }) => (
+  <div className="flex items-center justify-between px-1">
+    <span className="text-slate-600">{label}</span>
+    <span className="font-medium tabular text-slate-900">
+      {value < 0 ? `− ${formatAmount(-value)}` : formatAmount(value)}
+    </span>
+  </div>
+);
+
+const Detail = ({ k, v, mono }: { k: string; v: string; mono?: boolean }) => (
+  <>
+    <dt className="text-slate-500">{k}</dt>
+    <dd className={`font-medium text-slate-800 ${mono ? "font-mono" : ""}`}>{v}</dd>
+  </>
+);
 
 export default InvoicePreview;

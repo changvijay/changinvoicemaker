@@ -1,105 +1,54 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
-
+/* Chang IT Solutions design tokens (brand: changtechs.com — blue #2563EB → purple #9333EA). All colours HSL. */
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 215 25% 15%;
+    --background: 220 33% 98%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 210 100% 45%;
+    --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 215 25% 15%;
+    --secondary: 220 30% 95%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 15% 45%;
+    --muted: 220 30% 96%;
+    --muted-foreground: 220 12% 42%;
 
-    --accent: 195 85% 50%;
+    --accent: 271 81% 56%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    --success: 152 69% 36%;
+    --warning: 35 92% 45%;
+
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 31% 91%;
-    --input: 214 31% 91%;
-    --ring: 210 100% 45%;
+    --border: 220 20% 90%;
+    --input: 220 20% 88%;
+    --ring: 221 83% 53%;
 
-    --radius: 0.75rem;
-    
-    --gradient-primary: linear-gradient(135deg, hsl(210 100% 45%), hsl(195 85% 50%));
-    --gradient-header: linear-gradient(180deg, hsl(210 100% 45%), hsl(210 100% 35%));
-    --shadow-soft: 0 2px 8px hsla(215 25% 15% / 0.08);
-    --shadow-medium: 0 4px 16px hsla(215 25% 15% / 0.12);
+    --radius: 0.625rem;
+
+    --brand-gradient: linear-gradient(90deg, hsl(221 83% 53%), hsl(271 81% 56%));
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 215 28% 12%;
-    --foreground: 210 20% 98%;
-
-    --card: 215 25% 15%;
-    --card-foreground: 210 20% 98%;
-
-    --popover: 215 25% 15%;
-    --popover-foreground: 210 20% 98%;
-
-    --primary: 210 100% 55%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 215 25% 20%;
-    --secondary-foreground: 210 20% 98%;
-
-    --muted: 215 25% 20%;
-    --muted-foreground: 215 15% 65%;
-
-    --accent: 195 85% 55%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 72% 50%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 215 25% 25%;
-    --input: 215 25% 25%;
-    --ring: 210 100% 55%;
-    
-    --gradient-primary: linear-gradient(135deg, hsl(210 100% 55%), hsl(195 85% 55%));
-    --gradient-header: linear-gradient(180deg, hsl(210 100% 55%), hsl(210 100% 45%));
-    --shadow-soft: 0 2px 8px hsla(0 0% 0% / 0.3);
-    --shadow-medium: 0 4px 16px hsla(0 0% 0% / 0.4);
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
@@ -110,375 +59,25 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground antialiased;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    font-feature-settings: "cv11", "ss01";
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Custom Utilities */
 @layer utilities {
-  .bg-grid-white\/10 {
-    background-image: 
-      linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
-}
-
-/* Print Styles */
-@media print {
-  @page {
-    margin: 0.5cm;
-    size: A4 portrait;
+  .bg-brand-gradient {
+    background-image: var(--brand-gradient);
   }
 
-  * {
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
+  .text-brand-gradient {
+    background-image: var(--brand-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
-
-  body {
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-    margin: 0;
-    padding: 0;
-  }
-
-  /* Hide elements on print */
-  .print\:hidden {
-    display: none !important;
-  }
-
-  /* Ensure full width */
-  .container {
-    max-width: 100% !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* Force grid to single column */
-  .grid {
-    display: block !important;
-  }
-
-  /* Prevent page breaks */
-  .print-no-break {
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  .print-section {
-    page-break-inside: auto;
-    break-inside: auto;
-  }
-
-  /* Keep table rows together but allow breaks if needed */
-  tr {
-    page-break-inside: auto;
-    break-inside: auto;
-  }
-
-  thead {
-    display: table-header-group;
-  }
-
-  h1, h2, h3, h4, h5, h6 {
-    page-break-after: avoid !important;
-    break-after: avoid !important;
-  }
-
-  /* Remove all shadows */
-  .shadow-xl,
-  .shadow-lg,
-  .shadow-md,
-  .shadow-sm,
-  .shadow {
-    box-shadow: none !important;
-  }
-
-  /* Ensure backgrounds print */
-  .bg-gradient-to-r,
-  .bg-gradient-to-br,
-  .bg-gradient-to-l,
-  .bg-muted,
-  .bg-primary,
-  .bg-accent,
-  .bg-card {
-    print-color-adjust: exact !important;
-    -webkit-print-color-adjust: exact !important;
-  }
-
-  /* Remove blur effects */
-  .blur-2xl,
-  .backdrop-blur-sm {
-    filter: none !important;
-    backdrop-filter: none !important;
-  }
-
-  /* Optimize rounded corners */
-  .rounded-xl {
-    border-radius: 0.5rem !important;
-  }
-
-  .rounded-lg {
-    border-radius: 0.375rem !important;
-  }
-
-  /* Compact all spacing */
-  .space-y-8 > * + * {
-    margin-top: 1rem !important;
-  }
-
-  .space-y-6 > * + * {
-    margin-top: 0.75rem !important;
-  }
-
-  .space-y-3 > * + * {
-    margin-top: 0.5rem !important;
-  }
-
-  .space-y-2 > * + * {
-    margin-top: 0.375rem !important;
-  }
-
-  /* Compact padding */
-  .p-8 {
-    padding: 1rem !important;
-  }
-
-  .p-6 {
-    padding: 0.75rem !important;
-  }
-
-  .p-5 {
-    padding: 0.625rem !important;
-  }
-
-  .p-4 {
-    padding: 0.5rem !important;
-  }
-
-  .py-8 {
-    padding-top: 1rem !important;
-    padding-bottom: 1rem !important;
-  }
-
-  .py-6 {
-    padding-top: 0.75rem !important;
-    padding-bottom: 0.75rem !important;
-  }
-
-  .py-4 {
-    padding-top: 0.375rem !important;
-    padding-bottom: 0.375rem !important;
-  }
-
-  .px-4 {
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
-  }
-
-  /* Compact margins */
-  .mt-8 {
-    margin-top: 1rem !important;
-  }
-
-  .mt-6 {
-    margin-top: 0.75rem !important;
-  }
-
-  .mb-6 {
-    margin-bottom: 0.75rem !important;
-  }
-
-  .mb-3 {
-    margin-bottom: 0.5rem !important;
-  }
-
-  .gap-6 {
-    gap: 0.5rem !important;
-  }
-
-  /* Font size adjustments */
-  .text-3xl {
-    font-size: 1.5rem !important;
-    line-height: 2rem !important;
-  }
-
-  .text-2xl {
-    font-size: 1.25rem !important;
-    line-height: 1.75rem !important;
-  }
-
-  .text-xl {
-    font-size: 1.125rem !important;
-    line-height: 1.75rem !important;
-  }
-
-  .text-lg {
-    font-size: 1rem !important;
-    line-height: 1.5rem !important;
-  }
-
-  .text-base {
-    font-size: 0.875rem !important;
-    line-height: 1.25rem !important;
-  }
-
-  .text-sm {
-    font-size: 0.75rem !important;
-    line-height: 1rem !important;
-  }
-
-  .text-xs {
-    font-size: 0.625rem !important;
-    line-height: 0.875rem !important;
-  }
-
-  /* Table specific */
-  table {
-    width: 100% !important;
-    font-size: 0.75rem !important;
-  }
-
-  table th {
-    padding: 0.375rem 0.5rem !important;
-    font-size: 0.625rem !important;
-  }
-
-  table td {
-    padding: 0.375rem 0.5rem !important;
-    font-size: 0.625rem !important;
-  }
-
-  /* Width adjustments */
-  .w-96 {
-    width: 20rem !important;
-  }
-
-  .w-80 {
-    width: 18rem !important;
-  }
-
-  .w-40 {
-    width: 10rem !important;
-  }
-
-  .w-32 {
-    width: 8rem !important;
-  }
-
-  .w-8 {
-    width: 1.5rem !important;
-  }
-
-  .h-8 {
-    height: 1.5rem !important;
-  }
-
-  /* Icon sizes */
-  svg {
-    width: 0.75rem !important;
-    height: 0.75rem !important;
-  }
-
-  /* Border adjustments */
-  .border-2 {
-    border-width: 1px !important;
-  }
-
-  .border-t-2 {
-    border-top-width: 1px !important;
-  }
-
-  /* Ensure proper display */
-  .flex {
-    display: flex !important;
-  }
-
-  .grid {
-    display: grid !important;
-  }
-
-  .hidden {
-    display: none !important;
-  }
-
-  /* Column span */
-  .print\:col-span-2 {
-    grid-column: span 2 / span 2 !important;
-  }
-
-  /* Absolute positioned elements */
-  .absolute {
-    display: none !important;
-  }
-}
-
-/* Smooth Animations */
-@layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-in;
-  }
-
-  .animate-slide-up {
-    animation: slideUp 0.5s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes slideUp {
-    from {
-      transform: translateY(20px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-}
-
-/* Enhanced Input Styles */
-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: opacity(0.6);
-  cursor: pointer;
-}
-
-input[type="date"]:hover::-webkit-calendar-picker-indicator {
-  filter: opacity(1);
-}
-
-/* Scrollbar Styling */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary) / 0.5);
-  border-radius: 5px;
-  transition: background 0.2s;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary));
-}
-
-/* Focus Styles */
-*:focus-visible {
-  outline: 2px solid hsl(var(--ring));
-  outline-offset: 2px;
 }
