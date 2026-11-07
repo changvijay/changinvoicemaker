@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { existsSync } from "fs";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { pool, query, withTransaction, migrate } from "./db.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -10,6 +10,20 @@ const DIST_DIR = path.join(__dirname, "..", "dist");
 
 const app = express();
 app.use(cors());
+
+// Create/upgrade tables once per process before the first API request
+// (on Vercel each function instance runs this on its first request).
+let ready = null;
+app.use("/api", (_req, res, next) => {
+  ready ??= migrate().catch((error) => {
+    ready = null; // retry on the next request
+    throw error;
+  });
+  ready.then(() => next()).catch((error) => {
+    console.error("Database not reachable:", error.message);
+    res.status(503).json({ success: false, message: "Cannot connect to the database. Check the PG* environment variables." });
+  });
+});
 app.use(express.json({ limit: "1mb" }));
 
 // ---------- helpers ----------
@@ -719,15 +733,21 @@ if (existsSync(DIST_DIR)) {
   app.get("*", (_req, res) => res.sendFile(path.join(DIST_DIR, "index.html")));
 }
 
-const PORT = process.env.PORT || 4000;
+export default app;
 
-migrate()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Invoice API running on http://localhost:${PORT} (database: ${process.env.PGDATABASE})`);
+// Run as a normal server with `node server/invoiceServer.mjs` (local dev / npm start).
+// On Vercel the app is imported by api/index.js instead, so it must not listen.
+const runDirectly = process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (runDirectly) {
+  const PORT = process.env.PORT || 4000;
+  migrate()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`Invoice API running on http://localhost:${PORT} (database: ${process.env.PGDATABASE})`);
+      });
+    })
+    .catch((error) => {
+      console.error("Could not connect to PostgreSQL or create tables:", error.message);
+      process.exit(1);
     });
-  })
-  .catch((error) => {
-    console.error("Could not connect to PostgreSQL or create tables:", error.message);
-    process.exit(1);
-  });
+}

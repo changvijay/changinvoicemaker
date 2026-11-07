@@ -21,7 +21,7 @@ export const pool = new pg.Pool({
   user: process.env.PGUSER,
   password: process.env.PGPASSWORD,
   ssl,
-  max: 10,
+  max: process.env.VERCEL ? 3 : 10, // serverless: keep few connections per instance
   idleTimeoutMillis: 30_000,
 });
 

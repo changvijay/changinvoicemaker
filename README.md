@@ -48,6 +48,24 @@ npm run build   # builds the web app into dist/
 npm start       # one server: API + web app on PORT (default 4000)
 ```
 
+## Deploy on Vercel
+
+The repo is ready for Vercel: the web app is served as static files and `api/index.js` runs the same Express API
+as a serverless function (`vercel.json` routes `/api/*` to it and every other path to the app).
+
+In the Vercel project → **Settings → Environment Variables**, add (for Production and Preview):
+
+| Name | Value |
+| ---- | ----- |
+| `PGHOST` | your Aiven host |
+| `PGPORT` | your Aiven port |
+| `PGDATABASE` | `chang_invoices` |
+| `PGUSER` | `avnadmin` |
+| `PGPASSWORD` | your database password |
+| `PGSSLMODE` | `require` |
+
+Then redeploy. Check it with `https://<your-app>.vercel.app/api/health`.
+
 ## Database tables
 
 | Table              | Holds                                                        |
